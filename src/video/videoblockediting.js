@@ -1,111 +1,118 @@
 import { Plugin } from 'ckeditor5/src/core';
 import { ClipboardPipeline } from 'ckeditor5/src/clipboard';
 import { UpcastWriter } from 'ckeditor5/src/engine';
-import {
-    downcastVideoAttribute,
-    upcastVideoFigure,
-} from './converters';
+import { downcastVideoAttribute, upcastVideoFigure } from './converters';
 import VideoEditing from './videoediting';
 import VideoTypeCommand from './videotypecommand';
 import VideoUtils from '../videoutils';
 import {
-    createVideoViewElement,
-    determineVideoTypeForInsertionAtSelection,
-    getVideoViewElementMatcher
+  createVideoViewElement,
+  determineVideoTypeForInsertionAtSelection,
+  getVideoViewElementMatcher,
 } from './utils';
 
 export default class VideoBlockEditing extends Plugin {
-    static get requires() {
-        return [ VideoEditing, VideoUtils, ClipboardPipeline ];
+  static get requires() {
+    return [VideoEditing, VideoUtils, ClipboardPipeline];
+  }
+
+  static get pluginName() {
+    return 'VideoBlockEditing';
+  }
+
+  init() {
+    const editor = this.editor;
+    const schema = editor.model.schema;
+    schema.register('videoBlock', {
+      isObject: true,
+      isBlock: true,
+      allowWhere: '$block',
+      allowAttributes: ['src', 'allow', 'allowfullscreen', 'style'],
+    });
+
+    this._setupConversion();
+
+    if (editor.plugins.has('VideoInlineEditing')) {
+      editor.commands.add('videoTypeBlock', new VideoTypeCommand(this.editor, 'videoBlock'));
+
+      this._setupClipboardIntegration();
     }
+  }
 
-    static get pluginName() {
-        return 'VideoBlockEditing';
-    }
+  _setupConversion() {
+    const editor = this.editor;
+    const t = editor.t;
+    const conversion = editor.conversion;
+    const videoUtils = editor.plugins.get('VideoUtils');
 
-    init() {
-        const editor = this.editor;
-        const schema = editor.model.schema;
+    conversion.for('dataDowncast').elementToElement({
+      model: 'videoBlock',
+      view: (modelElement, { writer }) => createVideoViewElement(writer, 'videoBlock'),
+    });
 
-        schema.register( 'videoBlock', {
-            isObject: true,
-            isBlock: true,
-            allowWhere: '$block',
-            allowAttributes: [ 'src' ]
-        } );
+    conversion.for('editingDowncast').elementToElement({
+      model: 'videoBlock',
+      view: (modelElement, { writer }) =>
+        videoUtils.toVideoWidget(
+          createVideoViewElement(writer, 'videoBlock'),
+          writer,
+          t('video widget')
+        ),
+    });
 
-        this._setupConversion();
+    conversion
+      .for('downcast')
+      .add(downcastVideoAttribute(videoUtils, 'videoBlock', 'src'))
+      .add(downcastVideoAttribute(videoUtils, 'videoBlock', 'allow'))
+      .add(downcastVideoAttribute(videoUtils, 'videoBlock', 'allowfullscreen'))
+      .add(downcastVideoAttribute(videoUtils, 'videoBlock', 'style'));
 
-        if ( editor.plugins.has( 'VideoInlineEditing' ) ) {
-            editor.commands.add( 'videoTypeBlock', new VideoTypeCommand( this.editor, 'videoBlock' ) );
+    conversion
+      .for('upcast')
+      .elementToElement({
+        view: getVideoViewElementMatcher(editor, 'videoBlock'),
+        model: (viewVideo, { writer }) =>
+          writer.createElement('videoBlock', {
+            src: viewVideo.getAttribute('src'),
+            allow: 'accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;',
+            allowfullscreen: 'true',
+            style: 'border: none',
+          }),
+      })
+      .add(upcastVideoFigure(videoUtils));
+  }
 
-            this._setupClipboardIntegration();
-        }
-    }
+  _setupClipboardIntegration() {
+    const editor = this.editor;
+    const model = editor.model;
+    const editingView = editor.editing.view;
+    const videoUtils = editor.plugins.get('VideoUtils');
 
-    _setupConversion() {
-        const editor = this.editor;
-        const t = editor.t;
-        const conversion = editor.conversion;
-        const videoUtils = editor.plugins.get( 'VideoUtils' );
+    this.listenTo(editor.plugins.get('ClipboardPipeline'), 'inputTransformation', (evt, data) => {
+      const docFragmentChildren = Array.from(data.content.getChildren());
+      let modelRange;
 
-        conversion.for( 'dataDowncast' )
-            .elementToElement( {
-                model: 'videoBlock',
-                view: ( modelElement, { writer } ) => createVideoViewElement( writer, 'videoBlock' )
-            } );
+      if (!docFragmentChildren.every(videoUtils.isInlineVideoView)) {
+        return;
+      }
 
-        conversion.for( 'editingDowncast' )
-            .elementToElement( {
-                model: 'videoBlock',
-                view: ( modelElement, { writer } ) => videoUtils.toVideoWidget(
-                    createVideoViewElement( writer, 'videoBlock' ), writer, t( 'video widget' )
-                )
-            } );
+      if (data.targetRanges) {
+        modelRange = editor.editing.mapper.toModelRange(data.targetRanges[0]);
+      } else {
+        modelRange = model.document.selection.getFirstRange();
+      }
 
-        conversion.for( 'downcast' )
-            .add( downcastVideoAttribute( videoUtils, 'videoBlock', 'src' ) );
+      const selection = model.createSelection(modelRange);
 
-        conversion.for( 'upcast' )
-            .elementToElement( {
-                view: getVideoViewElementMatcher( editor, 'videoBlock' ),
-                model: ( viewVideo, { writer } ) => writer.createElement( 'videoBlock', { src: viewVideo.getAttribute( 'src' ) } )
-            } )
-            .add( upcastVideoFigure( videoUtils ) );
-    }
+      if (determineVideoTypeForInsertionAtSelection(model.schema, selection) === 'videoBlock') {
+        const writer = new UpcastWriter(editingView.document);
 
-    _setupClipboardIntegration() {
-        const editor = this.editor;
-        const model = editor.model;
-        const editingView = editor.editing.view;
-        const videoUtils = editor.plugins.get( 'VideoUtils' );
+        const blockViewVideos = docFragmentChildren.map(inlineViewVideo =>
+          writer.createElement('figure', { class: 'video' }, inlineViewVideo)
+        );
 
-        this.listenTo( editor.plugins.get( 'ClipboardPipeline' ), 'inputTransformation', ( evt, data ) => {
-            const docFragmentChildren = Array.from( data.content.getChildren() );
-            let modelRange;
-
-            if ( !docFragmentChildren.every( videoUtils.isInlineVideoView ) ) {
-                return;
-            }
-
-            if ( data.targetRanges ) {
-                modelRange = editor.editing.mapper.toModelRange( data.targetRanges[ 0 ] );
-            }
-            else {
-                modelRange = model.document.selection.getFirstRange();
-            }
-
-            const selection = model.createSelection( modelRange );
-
-            if ( determineVideoTypeForInsertionAtSelection( model.schema, selection ) === 'videoBlock' ) {
-                const writer = new UpcastWriter( editingView.document );
-
-                const blockViewVideos = docFragmentChildren.map(
-                    inlineViewVideo => writer.createElement( 'figure', { class: 'video' }, inlineViewVideo )
-                );
-
-                data.content = writer.createDocumentFragment( blockViewVideos );
-            }
-        } );
-    }
+        data.content = writer.createDocumentFragment(blockViewVideos);
+      }
+    });
+  }
 }

@@ -1,14 +1,14 @@
-import { Plugin } from "ckeditor5/src/core";
-import { UpcastWriter } from "ckeditor5/src/engine";
-import { Notification } from "ckeditor5/src/ui";
-import { ClipboardPipeline } from "ckeditor5/src/clipboard";
-import { FileRepository } from "ckeditor5/src/upload";
-import { env } from "ckeditor5/src/utils";
-import VideoUtils from "../videoutils";
-import UploadVideoCommand from "./uploadvideocommand";
-import { fetchLocalVideo, isLocalVideo, createVideoTypeRegExp } from "./utils";
+import { Plugin } from 'ckeditor5/src/core';
+import { UpcastWriter } from 'ckeditor5/src/engine';
+import { Notification } from 'ckeditor5/src/ui';
+import { ClipboardPipeline } from 'ckeditor5/src/clipboard';
+import { FileRepository } from 'ckeditor5/src/upload';
+import { env } from 'ckeditor5/src/utils';
+import VideoUtils from '../videoutils';
+import UploadVideoCommand from './uploadvideocommand';
+import { fetchLocalVideo, isLocalVideo, createVideoTypeRegExp } from './utils';
 
-const DEFAULT_VIDEO_EXTENSIONS = ["mp4", "webm", "ogg"];
+const DEFAULT_VIDEO_EXTENSIONS = ['mp4', 'webm', 'ogg'];
 
 export default class VideoUploadEditing extends Plugin {
   static get requires() {
@@ -16,13 +16,13 @@ export default class VideoUploadEditing extends Plugin {
   }
 
   static get pluginName() {
-    return "VideoUploadEditing";
+    return 'VideoUploadEditing';
   }
 
   constructor(editor) {
     super(editor);
 
-    editor.config.define("video.upload", {
+    editor.config.define('video.upload', {
       types: DEFAULT_VIDEO_EXTENSIONS,
       allowMultipleFiles: true,
     });
@@ -35,125 +35,99 @@ export default class VideoUploadEditing extends Plugin {
     const doc = editor.model.document;
     const conversion = editor.conversion;
     const fileRepository = editor.plugins.get(FileRepository);
-    const videoUtils = editor.plugins.get("VideoUtils");
-    const videoTypes = createVideoTypeRegExp(
-      editor.config.get("video.upload.types")
-    );
+    const videoUtils = editor.plugins.get('VideoUtils');
+    const videoTypes = createVideoTypeRegExp(editor.config.get('video.upload.types'));
     const uploadVideoCommand = new UploadVideoCommand(editor);
 
-    editor.commands.add("uploadVideo", uploadVideoCommand);
-    editor.commands.add("videoUpload", uploadVideoCommand);
+    editor.commands.add('uploadVideo', uploadVideoCommand);
+    editor.commands.add('videoUpload', uploadVideoCommand);
 
-    conversion.for("upcast").attributeToAttribute({
+    conversion.for('upcast').attributeToAttribute({
       view: {
-        name: "iframe",
-        key: "uploadId",
+        name: 'iframe',
+        key: 'uploadId',
       },
-      model: "uploadId",
+      model: 'uploadId',
     });
 
-    this.listenTo(
-      editor.editing.view.document,
-      "clipboardInput",
-      (evt, data) => {
-        if (isHtmlIncluded(data.dataTransfer)) {
-          return;
-        }
-
-        const videos = Array.from(data.dataTransfer.files).filter((file) => {
-          if (!file) {
-            return false;
-          }
-
-          return videoTypes.test(file.type);
-        });
-
-        if (!videos.length) {
-          return;
-        }
-
-        evt.stop();
-
-        editor.model.change((writer) => {
-          if (data.targetRanges) {
-            writer.setSelection(
-              data.targetRanges.map((viewRange) =>
-                editor.editing.mapper.toModelRange(viewRange)
-              )
-            );
-          }
-
-          editor.model.enqueueChange("default", () => {
-            editor.execute("uploadVideo", { file: videos });
-          });
-        });
+    this.listenTo(editor.editing.view.document, 'clipboardInput', (evt, data) => {
+      if (isHtmlIncluded(data.dataTransfer)) {
+        return;
       }
-    );
 
-    this.listenTo(
-      editor.plugins.get("ClipboardPipeline"),
-      "inputTransformation",
-      (evt, data) => {
-        const fetchableVideos = Array.from(
-          editor.editing.view.createRangeIn(data.content)
-        )
-          .filter(
-            (value) =>
-              isLocalVideo(videoUtils, value.item) &&
-              !value.item.getAttribute("uploadProcessed")
-          )
-          .map((value) => {
-            return {
-              promise: fetchLocalVideo(value.item),
-              videoElement: value.item,
-            };
-          });
-
-        if (!fetchableVideos.length) {
-          return;
+      const videos = Array.from(data.dataTransfer.files).filter(file => {
+        if (!file) {
+          return false;
         }
 
-        const writer = new UpcastWriter(editor.editing.view.document);
+        return videoTypes.test(file.type);
+      });
 
-        for (const fetchableVideo of fetchableVideos) {
-          writer.setAttribute(
-            "uploadProcessed",
-            true,
-            fetchableVideo.videoElement
+      if (!videos.length) {
+        return;
+      }
+
+      evt.stop();
+
+      editor.model.change(writer => {
+        if (data.targetRanges) {
+          writer.setSelection(
+            data.targetRanges.map(viewRange => editor.editing.mapper.toModelRange(viewRange))
           );
+        }
 
-          const loader = fileRepository.createLoader(fetchableVideo.promise);
+        editor.model.enqueueChange('default', () => {
+          editor.execute('uploadVideo', { file: videos });
+        });
+      });
+    });
 
-          if (loader) {
-            writer.setAttribute("src", "", fetchableVideo.videoElement);
-            writer.setAttribute(
-              "uploadId",
-              loader.id,
-              fetchableVideo.videoElement
-            );
-          }
+    this.listenTo(editor.plugins.get('ClipboardPipeline'), 'inputTransformation', (evt, data) => {
+      const fetchableVideos = Array.from(editor.editing.view.createRangeIn(data.content))
+        .filter(
+          value =>
+            isLocalVideo(videoUtils, value.item) && !value.item.getAttribute('uploadProcessed')
+        )
+        .map(value => {
+          return {
+            promise: fetchLocalVideo(value.item),
+            videoElement: value.item,
+          };
+        });
+
+      if (!fetchableVideos.length) {
+        return;
+      }
+
+      const writer = new UpcastWriter(editor.editing.view.document);
+
+      for (const fetchableVideo of fetchableVideos) {
+        writer.setAttribute('uploadProcessed', true, fetchableVideo.videoElement);
+
+        const loader = fileRepository.createLoader(fetchableVideo.promise);
+
+        if (loader) {
+          writer.setAttribute('src', '', fetchableVideo.videoElement);
+          writer.setAttribute('uploadId', loader.id, fetchableVideo.videoElement);
         }
       }
-    );
+    });
 
-    editor.editing.view.document.on("dragover", (evt, data) => {
+    editor.editing.view.document.on('dragover', (evt, data) => {
       data.preventDefault();
     });
 
-    doc.on("change", () => {
-      const changes = doc.differ
-        .getChanges({ includeChangesInGraveyard: true })
-        .reverse();
+    doc.on('change', () => {
+      const changes = doc.differ.getChanges({ includeChangesInGraveyard: true }).reverse();
       const insertedVideosIds = new Set();
 
       for (const entry of changes) {
-        if (entry.type === "insert" && entry.name !== "$text") {
+        if (entry.type === 'insert' && entry.name !== '$text') {
           const item = entry.position.nodeAfter;
-          const isInsertedInGraveyard =
-            entry.position.root.rootName === "$graveyard";
+          const isInsertedInGraveyard = entry.position.root.rootName === '$graveyard';
 
           for (const videoElement of getVideosFromChangeItem(editor, item)) {
-            const uploadId = videoElement.getAttribute("uploadId");
+            const uploadId = videoElement.getAttribute('uploadId');
 
             if (!uploadId) {
               continue;
@@ -173,7 +147,7 @@ export default class VideoUploadEditing extends Plugin {
               insertedVideosIds.add(uploadId);
               this._uploadVideoElements.set(uploadId, videoElement);
 
-              if (loader.status == "idle") {
+              if (loader.status == 'idle') {
                 this._readAndUpload(loader);
               }
             }
@@ -183,30 +157,37 @@ export default class VideoUploadEditing extends Plugin {
     });
 
     this.on(
-      "uploadComplete",
+      'uploadComplete',
       (evt, { videoElement, data }) => {
         const urls = data.urls ? data.urls : data;
 
-        this.editor.model.change((writer) => {
-          writer.setAttribute("src", urls.default, videoElement);
+        this.editor.model.change(writer => {
+          writer.setAttribute('src', urls.default, videoElement);
+          writer.setAttribute(
+            'allow',
+            'accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;',
+            videoElement
+          );
+          writer.setAttribute('allowfullscreen', true, videoElement);
+          writer.setAttribute('style', 'border: none', videoElement);
         });
       },
-      { priority: "low" }
+      { priority: 'low' }
     );
   }
 
   afterInit() {
     const schema = this.editor.model.schema;
 
-    if (this.editor.plugins.has("VideoBlockEditing")) {
-      schema.extend("videoBlock", {
-        allowAttributes: ["uploadId", "uploadStatus"],
+    if (this.editor.plugins.has('VideoBlockEditing')) {
+      schema.extend('videoBlock', {
+        allowAttributes: ['uploadId', 'uploadStatus'],
       });
     }
 
-    if (this.editor.plugins.has("VideoInlineEditing")) {
-      schema.extend("videoInline", {
-        allowAttributes: ["uploadId", "uploadStatus"],
+    if (this.editor.plugins.has('VideoInlineEditing')) {
+      schema.extend('videoInline', {
+        allowAttributes: ['uploadId', 'uploadStatus'],
       });
     }
   }
@@ -217,15 +198,11 @@ export default class VideoUploadEditing extends Plugin {
     const t = editor.locale.t;
     const fileRepository = editor.plugins.get(FileRepository);
     const notification = editor.plugins.get(Notification);
-    const videoUtils = editor.plugins.get("VideoUtils");
+    const videoUtils = editor.plugins.get('VideoUtils');
     const videoUploadElements = this._uploadVideoElements;
 
-    model.enqueueChange("transparent", (writer) => {
-      writer.setAttribute(
-        "uploadStatus",
-        "reading",
-        videoUploadElements.get(loader.id)
-      );
+    model.enqueueChange('transparent', writer => {
+      writer.setAttribute('uploadStatus', 'reading', videoUploadElements.get(loader.id));
     });
 
     return loader
@@ -238,14 +215,12 @@ export default class VideoUploadEditing extends Plugin {
           const viewFigure = editor.editing.mapper.toViewElement(videoElement);
           const viewVideo = videoUtils.findViewVideoElement(viewFigure);
 
-          editor.editing.view.once("render", () => {
+          editor.editing.view.once('render', () => {
             if (!viewVideo.parent) {
               return;
             }
 
-            const domFigure = editor.editing.view.domConverter.mapViewToDom(
-              viewVideo.parent
-            );
+            const domFigure = editor.editing.view.domConverter.mapViewToDom(viewVideo.parent);
 
             if (!domFigure) {
               return;
@@ -253,7 +228,7 @@ export default class VideoUploadEditing extends Plugin {
 
             const originalDisplay = domFigure.style.display;
 
-            domFigure.style.display = "none";
+            domFigure.style.display = 'none';
 
             domFigure._ckHack = domFigure.offsetHeight;
 
@@ -261,36 +236,36 @@ export default class VideoUploadEditing extends Plugin {
           });
         }
 
-        model.enqueueChange("transparent", (writer) => {
-          writer.setAttribute("uploadStatus", "uploading", videoElement);
+        model.enqueueChange('transparent', writer => {
+          writer.setAttribute('uploadStatus', 'uploading', videoElement);
         });
 
         return promise;
       })
-      .then((data) => {
-        model.enqueueChange("transparent", (writer) => {
+      .then(data => {
+        model.enqueueChange('transparent', writer => {
           const videoElement = videoUploadElements.get(loader.id);
 
-          writer.setAttribute("uploadStatus", "complete", videoElement);
+          writer.setAttribute('uploadStatus', 'complete', videoElement);
 
-          this.fire("uploadComplete", { data, videoElement });
+          this.fire('uploadComplete', { data, videoElement });
         });
 
         clean();
       })
-      .catch((error) => {
-        if (loader.status !== "error" && loader.status !== "aborted") {
+      .catch(error => {
+        if (loader.status !== 'error' && loader.status !== 'aborted') {
           throw error;
         }
 
-        if (loader.status === "error" && error) {
+        if (loader.status === 'error' && error) {
           notification.showWarning(error, {
-            title: t("Upload failed"),
-            namespace: "upload",
+            title: t('Upload failed'),
+            namespace: 'upload',
           });
         }
 
-        model.enqueueChange("transparent", (writer) => {
+        model.enqueueChange('transparent', writer => {
           writer.remove(videoUploadElements.get(loader.id));
         });
 
@@ -298,11 +273,11 @@ export default class VideoUploadEditing extends Plugin {
       });
 
     function clean() {
-      model.enqueueChange("transparent", (writer) => {
+      model.enqueueChange('transparent', writer => {
         const videoElement = videoUploadElements.get(loader.id);
 
-        writer.removeAttribute("uploadId", videoElement);
-        writer.removeAttribute("uploadStatus", videoElement);
+        writer.removeAttribute('uploadId', videoElement);
+        writer.removeAttribute('uploadStatus', videoElement);
 
         videoUploadElements.delete(loader.id);
       });
@@ -314,15 +289,14 @@ export default class VideoUploadEditing extends Plugin {
 
 export function isHtmlIncluded(dataTransfer) {
   return (
-    Array.from(dataTransfer.types).includes("text/html") &&
-    dataTransfer.getData("text/html") !== ""
+    Array.from(dataTransfer.types).includes('text/html') && dataTransfer.getData('text/html') !== ''
   );
 }
 
 function getVideosFromChangeItem(editor, item) {
-  const videoUtils = editor.plugins.get("VideoUtils");
+  const videoUtils = editor.plugins.get('VideoUtils');
 
   return Array.from(editor.model.createRangeOn(item))
-    .filter((value) => videoUtils.isVideo(value.item))
-    .map((value) => value.item);
+    .filter(value => videoUtils.isVideo(value.item))
+    .map(value => value.item);
 }
