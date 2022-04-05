@@ -76,7 +76,7 @@ export default class VideoBlockEditing extends Plugin {
             src: viewVideo.getAttribute('src'),
             allow: 'accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;',
             allowfullscreen: 'true',
-            style: 'border: none',
+            style: 'border: none; display: block;',
           }),
       })
       .add(upcastVideoFigure(videoUtils));

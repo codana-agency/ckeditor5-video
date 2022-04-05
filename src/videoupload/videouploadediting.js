@@ -169,7 +169,7 @@ export default class VideoUploadEditing extends Plugin {
             videoElement
           );
           writer.setAttribute('allowfullscreen', true, videoElement);
-          writer.setAttribute('style', 'border: none', videoElement);
+          writer.setAttribute('style', 'border: none; display: block;', videoElement);
         });
       },
       { priority: 'low' }
