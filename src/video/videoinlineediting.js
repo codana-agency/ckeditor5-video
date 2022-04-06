@@ -79,7 +79,7 @@ export default class VideoInlineEditing extends Plugin {
       model: (viewVideo, { writer }) =>
         writer.createElement('videoInline', {
           src: viewVideo.getAttribute('src'),
-          allow: 'accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;',
+          allow: 'accelerometer; gyroscope; encrypted-media; picture-in-picture;',
           allowfullscreen: 'true',
           style: 'border: none; display: block;',
         }),

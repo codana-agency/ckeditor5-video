@@ -165,7 +165,7 @@ export default class VideoUploadEditing extends Plugin {
           writer.setAttribute('src', urls.default, videoElement);
           writer.setAttribute(
             'allow',
-            'accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;',
+            'accelerometer; gyroscope; encrypted-media; picture-in-picture;',
             videoElement
           );
           writer.setAttribute('allowfullscreen', true, videoElement);
