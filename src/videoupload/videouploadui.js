@@ -33,7 +33,6 @@ export default class VideoUploadUI extends Plugin {
         );
 
         if (videosToUpload.length) {
-          console.log('will execute');
           editor.execute('uploadVideo', { files: videosToUpload });
         }
       });
